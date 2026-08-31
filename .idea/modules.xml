@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Multivendor.iml" filepath="$PROJECT_DIR$/.idea/Multivendor.iml" />
+      <module fileurl="file://$PROJECT_DIR$/meridian-frontend/meridian-frontend.iml" filepath="$PROJECT_DIR$/meridian-frontend/meridian-frontend.iml" />
     </modules>
   </component>
 </project>
