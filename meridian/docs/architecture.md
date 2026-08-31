@@ -85,10 +85,34 @@ been failing since the project was generated: the registry bean is created whene
 `spring-modulith-starter-jpa` is on the classpath, `ddl-auto` defaults to none, and there were no
 migrations.
 
+## Observability
+
+NFR-11 wiring is in place from the start rather than added when something is slow:
+
+- **Structured logging** — ECS JSON on stdout, with a `local` profile that restores readable console
+  output. Trace and span ids are correlated into every line.
+- **Metrics** — Micrometer with a Prometheus registry at `/actuator/prometheus`, tagged with
+  application and environment.
+- **Tracing** — OpenTelemetry via `spring-boot-starter-opentelemetry`, OTLP export off unless
+  `OTLP_TRACES_ENDPOINT` and `OTLP_TRACES_ENABLED` are set, so a missing collector cannot fail
+  startup. `spring-modulith-observability` adds a span per module invocation, so a trace shows which
+  module did what.
+
+`ObservabilityTests` asserts the registry and tracer are actually wired. Observability configuration
+is the kind that looks correct and does nothing — a renamed property or an autoconfiguration backing
+off silently presents as a healthy application with no traces.
+
+The trace id also reaches the frontend: it is the `meta.traceId` in the API response envelope, so a
+buyer-reported failure can be followed from the browser to the module that failed.
+
+## Pipelines
+
+`.github/workflows/backend.yml` and `frontend.yml`, documented in `.github/workflows/README.md`.
+**Neither has ever run: the repository has no git remote.**
+
 ## Not yet done
 
-Phase 0 exit also requires a deployment pipeline and observability (BRD 18). Neither is in place.
-Outstanding before Phase 3:
-
-- Rounding convention per use — commission, VAT, holdback — recorded as a business decision (ADR-003).
-- CI pipeline running `./gradlew test`, and structured logging, tracing and metrics per NFR-11.
+- **Deployment.** No cluster, registry or staging environment exists, so the second half of the
+  Phase 0 exit criterion — "pipeline deploys to staging automatically" — is not met.
+- **Rounding convention per use** — commission, VAT, holdback — recorded as a business decision
+  (ADR-003). It moves money, so it is not an engineering choice.

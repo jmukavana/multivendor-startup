@@ -4,6 +4,8 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Multivendor.iml" filepath="$PROJECT_DIR$/.idea/Multivendor.iml" />
       <module fileurl="file://$PROJECT_DIR$/meridian-frontend/meridian-frontend.iml" filepath="$PROJECT_DIR$/meridian-frontend/meridian-frontend.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/meridian.main.iml" filepath="$PROJECT_DIR$/.idea/modules/meridian.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/meridian.test.iml" filepath="$PROJECT_DIR$/.idea/modules/meridian.test.iml" />
     </modules>
   </component>
 </project>

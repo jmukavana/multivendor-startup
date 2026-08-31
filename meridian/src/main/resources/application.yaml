@@ -5,3 +5,77 @@ spring:
     type: caffeine
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=10m
+
+# NFR-11 requires structured logging, distributed tracing and metrics to be in place from first
+# deployment, not added once something is slow. NFR-12 raises payment reconciliation variance,
+# settlement failure and invoice transmission failure to priority incidents, which needs metrics
+# that exist before those features do.
+#
+# Trace context also carries the traceId the frontend surfaces in its API error envelope
+# (meridian-frontend: shared/api/types.ts, ApiMeta.traceId), so a buyer-reported failure can be
+# traced from the browser through to the module that failed.
+logging:
+  structured:
+    format:
+      # JSON on stdout for the container runtime to collect. Human-readable output is restored in
+      # the local profile below; a developer should not have to read JSON in a terminal.
+      console: ecs
+  level:
+    org.springframework.modulith: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Not a public surface. In staging and production these are served on a separate port and
+        # firewalled; see the deployment manifests before exposing anything further.
+        include: health,info,metrics,prometheus,modulith
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  tracing:
+    sampling:
+      # Every request is sampled until there is traffic worth sampling from. Lower it in production
+      # once volume makes full capture expensive; at launch volumes the data is worth more than the
+      # cost, and a 1% sample of a failure that happens twice a day tells you nothing.
+      probability: 1.0
+  opentelemetry:
+    resource-attributes:
+      service.name: meridian
+      deployment.environment: ${DEPLOYMENT_ENVIRONMENT:local}
+    tracing:
+      export:
+        otlp:
+          # Unset locally, so nothing is exported and startup is unaffected. Set per environment.
+          endpoint: ${OTLP_TRACES_ENDPOINT:}
+  otlp:
+    tracing:
+      export:
+        # Disabled unless an endpoint is configured, so a missing collector cannot noisily fail.
+        enabled: ${OTLP_TRACES_ENABLED:false}
+  metrics:
+    tags:
+      application: meridian
+      environment: ${DEPLOYMENT_ENVIRONMENT:local}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+logging:
+  structured:
+    format:
+      console: ""

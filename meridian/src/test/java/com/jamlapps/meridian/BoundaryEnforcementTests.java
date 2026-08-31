@@ -3,6 +3,7 @@ package com.jamlapps.meridian;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModule;
@@ -28,7 +29,9 @@ class BoundaryEnforcementTests {
     @Test
     @DisplayName("verification rejects a module reaching outside its allowed dependencies")
     void detectsDisallowedDependency() {
-        ApplicationModules fixture = ApplicationModules.of(FIXTURE);
+        // The fixture is compiled to the test classpath, which ArchUnit's default import option
+        // excludes. Include every location so the deliberately broken modules are actually seen.
+        ApplicationModules fixture = ApplicationModules.of(FIXTURE, (ImportOption) location -> true);
 
         assertThatExceptionOfType(Violations.class)
                 .isThrownBy(fixture::verify)

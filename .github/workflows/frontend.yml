@@ -1,0 +1,49 @@
+name: Frontend
+
+on:
+  push:
+    branches: [main]
+    paths: ['meridian-frontend/**', '.github/workflows/frontend.yml']
+  pull_request:
+    paths: ['meridian-frontend/**', '.github/workflows/frontend.yml']
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: meridian-frontend
+
+jobs:
+  build:
+    name: Lint, typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: meridian-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Biome does not typecheck. Without this step a type error reaches the build step at best,
+      # and a runtime failure at worst.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Verified to build without MERIDIAN_API_URL: nothing calls the API client during the build,
+      # so no environment is needed here. If a route later prerenders data at build time it will
+      # fail here, which is the correct signal — supply the variable then, deliberately.
+      - name: Build
+        run: npm run build
