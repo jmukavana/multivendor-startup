@@ -82,7 +82,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Builds the image to prove it still builds. Pushing needs a registry that does not exist
-      # yet; see .github/workflows/README.md.
+      # The Dockerfile copies a prebuilt jar rather than compiling inside the image, so it must
+      # exist first. Tests already ran in the `build` job; this skips them.
+      - name: Build boot jar
+        run: ./gradlew bootJar --no-daemon
+
+      # Built, not pushed. There is no registry yet — see .github/workflows/README.md.
       - name: Build image
-        run: ./gradlew bootBuildImage --imageName=meridian:${{ github.sha }} --no-daemon
+        run: docker build -t meridian:${{ github.sha }} .
+
+      - name: Report image size
+        run: docker images meridian:${{ github.sha }} --format '{{.Size}}'

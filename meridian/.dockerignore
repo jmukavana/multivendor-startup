@@ -1,0 +1,4 @@
+# Everything except the built jar the Dockerfile copies. Keeps the build context off the ~100MB of
+# sources, gradle caches and test reports that the image never needs.
+*
+!build/libs/*.jar

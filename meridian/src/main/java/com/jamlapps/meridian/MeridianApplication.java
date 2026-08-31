@@ -7,7 +7,7 @@ import org.springframework.modulith.Modulithic;
 
 @SpringBootApplication
 @EnableCaching
-@Modulithic(systemName = "Meridian", sharedModules = "shared")
+@Modulithic(systemName = "Meridian", sharedModules = {"shared", "web"})
 public class MeridianApplication {
 
     public static void main(String[] args) {

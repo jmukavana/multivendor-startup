@@ -13,7 +13,10 @@ starting PostgreSQL under Testcontainers.
 The frontend job's steps were run locally against this tree and pass: `npm ci`, `npm run lint`
 (21 files, clean), `npx tsc --noEmit`, and `npm run build`.
 
-The backend job's `build` step is the same command that passes locally.
+The backend job's `build` step is the same command that passes locally. Note that `./gradlew build`
+initially failed at `bootJar` on a duplicate `application-modules.json` contributed by both the main
+resources and the AOT output; `build.gradle.kts` now sets a duplicates strategy for that task. The
+first CI run would have failed without it.
 
 ## What has not been verified
 
@@ -21,9 +24,9 @@ The backend job's `build` step is the same command that passes locally.
 are inert. That is the outstanding half of the Phase 0 exit criterion, which reads "pipeline
 deploys to staging automatically".
 
-**`bootBuildImage` is unverified.** It needs a Docker daemon; this machine has podman, and Spring
-Boot's builder needs `DOCKER_HOST` pointed at the podman socket to work with it. GitHub-hosted
-runners provide Docker, so the step should work there, but it has not been proven.
+The container image was built and run locally with podman: 337 MB, starts as the unprivileged
+`meridian` user, emits ECS JSON, and reaches the datasource before failing as expected with no
+database attached.
 
 ## Not built yet
 
@@ -31,15 +34,13 @@ runners provide Docker, so the step should work there, but it has not been prove
 service account and no staging environment, so there is nothing to deploy to and no credentials to
 deploy with. The `image` job builds an image and does not push it.
 
-Adding deployment needs, in order:
+Manifests for staging are written and validated in `meridian/deploy/staging/`. What remains is
+infrastructure, in order:
 
 1. A container registry and a service account with push rights.
 2. A staging GKE cluster.
 3. Repository secrets for registry and cluster credentials.
-4. Kubernetes manifests — deployment, service, config, secrets, and probes wired to the
-   `/actuator/health/liveness` and `/actuator/health/readiness` endpoints already enabled in
-   `application.yaml`.
-5. A `deploy` job gated on `github.ref == 'refs/heads/main'`.
+4. A `deploy` job gated on `github.ref == 'refs/heads/main'`.
 
 **Database migrations in the pipeline.** Flyway runs at application start, so a deployment applies
 migrations. That is acceptable for a single instance and becomes a problem the first time two

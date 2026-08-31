@@ -36,7 +36,7 @@ declared is a build failure.
 | `tax` | REG-04 to 08 | 3 | `order::events` |
 | `review` | BR-REV | 8 | `order`, `catalog` |
 | `search` | BR-SCH | 8 | `catalog` |
-| `notification` | BR-NTF | 2+ | events of `order`, `payment`, `settlement`, `returns`, `vendor` |
+| `notification` | BR-NTF | 2+ | events of `iam`, `order`, `payment`, `settlement`, `returns`, `vendor` |
 | `integrity` | BR-SEC | 9 | `iam` |
 | `admin` | BR-ADM | 2+ | `vendor`, `catalog`, `order`, `payment`, `ledger`, `settlement`, `returns`, `pricing`, `integrity` |
 
@@ -71,6 +71,20 @@ out of `order`, which stays a state machine.
 **We must** treat a change to this table as an architectural decision. Adding a dependency means
 editing a `package-info.java` and superseding this ADR, which is the point: the friction is the
 control that BRD RSK-12 asks for.
+
+## Note added in Phase 1: `iam`
+
+`iam` was built before this table's Phase 1/2 modules and turned out to need nothing from the
+graph — it depends on no other module, matching the original plan. What the plan did not foresee
+was `notification` needing `iam::events`: one-time codes are delivered by SMS, which is
+`notification`'s job, and `iam` publishes `OneTimeCodeIssued` rather than sending anything itself,
+per ADR-004. `notification`'s allowed dependencies gained `iam::events` for that reason.
+
+`web` also gained a wiring detail worth recording here rather than only in ADR-004: `iam`
+contributes its session-resolving filter to the security chain declared in `web`, but `web` never
+imports an `iam` type to do it. The filter is injected into `web`'s configuration by Spring bean
+name, typed only as `jakarta.servlet.Filter` — a JDK type. `web` stays the module everything else
+depends on, not the reverse.
 
 ## Note on `pricing`
 

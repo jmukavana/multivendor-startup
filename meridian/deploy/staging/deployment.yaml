@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meridian
+  namespace: meridian-staging
+  labels:
+    app.kubernetes.io/name: meridian
+    app.kubernetes.io/component: backend
+spec:
+  # Two replicas so a node eviction is not an outage, and so the replica-count assumptions in the
+  # application are exercised in staging rather than discovered in production. See the migration
+  # note in deploy/staging/README.md before raising this.
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meridian
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: meridian
+        app.kubernetes.io/component: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: meridian
+          image: meridian:replaced-at-deploy
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: staging
+            - name: DEPLOYMENT_ENVIRONMENT
+              value: staging
+          envFrom:
+            - configMapRef:
+                name: meridian-config
+            - secretRef:
+                name: meridian-secrets
+          # Startup probe carries the slow first boot — JVM warmup plus Flyway — so liveness can
+          # stay aggressive afterward without killing a pod that is merely still starting.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # Readiness reports the datasource, so a pod that loses its database is removed from the
+          # service rather than serving errors.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              # No CPU limit deliberately: throttling a JVM during GC causes latency spikes worse
+              # than the noisy-neighbor problem the limit would prevent. Memory is limited because
+              # the JVM sizes its heap from it via MaxRAMPercentage in the image.
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

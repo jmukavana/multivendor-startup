@@ -113,6 +113,25 @@ Phase 0 exits** — the VAT classification decides pricing, and DEP-02 is due he
 **This phase is where the contract stops being one-sided.** Do it first, before any further
 feature work on either side.
 
+**Status.** The `web` module (envelope, error codes, problem details, `/api` prefix, OpenAPI) and
+`iam` (registration, one-time codes, sessions, RBAC, per ADR-008) are both built and tested end to
+end through real HTTP.
+
+**One frontend assumption did not survive contact with the backend, and this is exactly the
+one-sidedness this phase exists to catch.** `shared/lib/session.ts`'s comment describes the session
+cookie as "issued by the backend" — but the frontend's API client is server-only, so the browser
+never calls the backend directly; only the Next.js server does, over a plain server-to-server
+fetch. A `Set-Cookie` header on that response does not reach the browser, because Node's `fetch`
+does not forward it. The backend now returns the token in the response body instead
+(`data.token`), and the still-unbuilt sign-in Server Action is what must set the `meridian_session`
+cookie itself, via `cookies().set(...)`, on its own response to the browser. `session.ts` is
+unaffected — it only ever read the cookie back, which is unchanged — but the auth actions that do
+not yet exist need to be written against this contract, not the one the old comment implied.
+
+Outstanding: the frontend's sign-in/sign-out Server Actions (do not exist yet — there is no
+`features/auth` to reconcile, only `session.ts` and `client.ts` to build against), and switching
+from hand-written types to ones generated from `/v3/api-docs`.
+
 ### Phase 2 — Vendor lifecycle
 
 *Exit: UC-01 and UC-02 pass in full including exception flows; AC-VND-01 to 06 and AC-CAT-01 to 04 pass.*

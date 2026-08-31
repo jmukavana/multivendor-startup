@@ -95,3 +95,12 @@ hibernate {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// Both the main resources and the AOT-processed output contribute
+// META-INF/spring-modulith/application-modules.json, so bootJar sees the same entry twice and
+// refuses to guess. The two are generated from the same module structure and are equivalent;
+// taking the first and dropping the duplicate is the resolution, not a workaround for a conflict.
+// Without this `./gradlew build` fails and no deployable artefact is produced.
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
