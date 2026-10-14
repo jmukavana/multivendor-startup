@@ -29,6 +29,12 @@ public enum ErrorCode {
     /** A vendor application quoting a KRA PIN already held by another vendor (BR-VND-02). */
     KRA_PIN_TAKEN(HttpStatus.CONFLICT),
 
+    /** The calling account already owns a vendor. Walking-skeleton stand-in; see {@code vendor.Vendor}. */
+    VENDOR_ALREADY_EXISTS(HttpStatus.CONFLICT),
+
+    /** BR-SEC-01/02: a configured rate limit was exceeded. See {@code web.RateLimiter}. */
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS),
+
     /** Anything unhandled. The detail is deliberately generic; the trace id carries the specifics. */
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 

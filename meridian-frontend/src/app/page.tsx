@@ -1,69 +1,175 @@
-import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+import { listProductImages, listProducts } from "@/features/catalog";
+import { getProductRatingSummary } from "@/features/reviews";
+import { type ProductSortOption, searchProducts } from "@/features/search";
+import { resolveVendorNames } from "@/features/vendors";
+import { ProductTile } from "@/shared/components/marketplace/ProductTile";
+import {
+  MarketplaceHeader,
+  MobileNav,
+} from "@/shared/components/marketplace/Shell";
+import { Button } from "@/shared/components/ui/button";
+
+const SORTS: ReadonlyArray<{
+  readonly value: ProductSortOption | null;
+  readonly label: string;
+}> = [
+  { value: null, label: "Featured" },
+  { value: "RECENCY", label: "Newest" },
+  { value: "PRICE_ASC", label: "Price: Low to High" },
+  { value: "PRICE_DESC", label: "Price: High to Low" },
+];
+
+function isSortOption(value: string | undefined): value is ProductSortOption {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    value === "RECENCY" ||
+    value === "PRICE_ASC" ||
+    value === "PRICE_DESC" ||
+    value === "RELEVANCE"
+  );
+}
+
+function sortHref(sort: ProductSortOption | null, q: string): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (sort) params.set("sort", sort);
+  const query = params.toString();
+  return query ? `/?${query}` : "/";
+}
+
+export default async function HomePage({ searchParams }: PageProps<"/">) {
+  const params = await searchParams;
+  const q = typeof params.q === "string" ? params.q.trim() : "";
+  const sortParam = typeof params.sort === "string" ? params.sort : undefined;
+  const page = Number(params.page) || 0;
+
+  // A bare "/" uses the plain, publicly cached listing — the fastest path, and correct for the
+  // overwhelming majority of visits. Search only enters once there is a keyword or an explicit
+  // sort to honour, which `listProducts` (BR-SCH-04's recency order only) cannot express.
+  const usingSearch = q.length > 0 || isSortOption(sortParam);
+  const sort: ProductSortOption = isSortOption(sortParam)
+    ? sortParam
+    : "RELEVANCE";
+
+  const result = usingSearch
+    ? await searchProducts({ keyword: q || undefined, sort, page })
+    : await listProducts({ page });
+
+  const products = result.data;
+
+  const [vendorNames, ratings, images] = await Promise.all([
+    resolveVendorNames(products.map((product) => product.vendorId)),
+    Promise.all(
+      products.map((product) =>
+        getProductRatingSummary(product.id).catch(() => null),
+      ),
+    ),
+    Promise.all(
+      products.map((product) =>
+        listProductImages(product.id).then((list) => list[0]?.url ?? null),
+      ),
+    ),
+  ]);
+
+  const { totalPages, page: currentPage } = result.meta.pagination;
+
+  return (
+    <div className="min-h-screen bg-surface pb-24 text-on-surface md:pb-0">
+      <MarketplaceHeader active="home" />
+
+      <main className="mx-auto max-w-[1280px] px-margin-mobile py-8 md:px-margin-desktop">
+        <section aria-label="Sort" className="mb-12 md:mb-14">
+          <div className="-mx-margin-mobile flex gap-3 overflow-x-auto px-margin-mobile pb-2 md:mx-0 md:px-0">
+            {SORTS.map((option) => {
+              const active = usingSearch
+                ? option.value === sortParam
+                : option.value === null;
+              return (
+                <Button
+                  key={option.label}
+                  variant={active ? "default" : "outline"}
+                  className="h-11 shrink-0 rounded-full px-5"
+                  asChild
+                >
+                  <Link href={sortHref(option.value, q)}>{option.label}</Link>
+                </Button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section aria-labelledby="recommended-heading">
+          <div className="mb-6 flex items-end justify-between gap-4">
+            <h1
+              id="recommended-heading"
+              className="text-2xl font-bold leading-8 text-on-surface md:text-[32px] md:leading-10"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              {q ? `Results for "${q}"` : "Recommended for You"}
+            </h1>
+          </div>
+
+          {products.length === 0 ? (
+            <p className="py-16 text-center text-body-md text-on-surface-variant">
+              {q
+                ? "No products matched your search."
+                : "No products are listed yet."}
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-5 md:grid-cols-4 md:gap-gutter lg:grid-cols-5">
+              {products.map((product, index) => (
+                <ProductTile
+                  key={product.id}
+                  product={product}
+                  vendorName={vendorNames.get(product.vendorId) ?? null}
+                  imageUrl={images[index]}
+                  rating={ratings[index]}
+                />
+              ))}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <nav
+              className="mt-10 flex items-center justify-center gap-3"
+              aria-label="Pagination"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+              {currentPage > 1 && (
+                <Button variant="outline" asChild>
+                  <Link href={pageHref(sort, q, usingSearch, page - 1)}>
+                    Previous
+                  </Link>
+                </Button>
+              )}
+              <span className="text-label-md text-on-surface-variant">
+                Page {currentPage} of {totalPages}
+              </span>
+              {currentPage < totalPages && (
+                <Button variant="outline" asChild>
+                  <Link href={pageHref(sort, q, usingSearch, page + 1)}>
+                    Next
+                  </Link>
+                </Button>
+              )}
+            </nav>
+          )}
+        </section>
       </main>
+
+      <MobileNav active="home" />
     </div>
   );
+}
+
+function pageHref(
+  sort: ProductSortOption,
+  q: string,
+  usingSearch: boolean,
+  page: number,
+): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (usingSearch) params.set("sort", sort);
+  params.set("page", String(page));
+  return `/?${params.toString()}`;
 }

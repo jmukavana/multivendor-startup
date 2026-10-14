@@ -1,17 +1,16 @@
 package com.jamlapps.meridian.iam.internal;
 
 import com.jamlapps.meridian.iam.AccountStatus;
-import com.jamlapps.meridian.iam.MeridianPrincipal;
+import com.jamlapps.meridian.web.AuthenticatedCaller;
 import java.time.Clock;
-import java.util.List;
 import java.util.Optional;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Resolves a bearer token into a principal, touching the session's last-used timestamp along the
- * way.
+ * Resolves a bearer token into an {@link AuthenticatedCaller}, touching the session's last-used
+ * timestamp along the way.
  *
  * <p>Split out from {@code SessionAuthenticationFilter} deliberately: {@code @Transactional} does
  * not belong on a class extending {@code OncePerRequestFilter}. Spring AOP proxies a transactional
@@ -35,7 +34,7 @@ class SessionResolver {
     }
 
     @Transactional
-    Optional<MeridianPrincipal> resolve(String token) {
+    Optional<AuthenticatedCaller> resolve(String token) {
         var now = clock.instant();
 
         return sessions.findByTokenHash(TokenHashing.hash(token))
@@ -48,12 +47,8 @@ class SessionResolver {
                 // the second gate: a session that outlives that revocation for any reason still
                 // cannot authenticate. BR-VND-10 and BR-SEC-07 both depend on this being immediate.
                 .filter(account -> account.status() == AccountStatus.ACTIVE)
-                .map(account -> new MeridianPrincipal(account.id(), account.toAccount()));
-    }
-
-    static List<SimpleGrantedAuthority> authoritiesOf(MeridianPrincipal principal) {
-        return principal.account().roles().stream()
-                .map(role -> new SimpleGrantedAuthority(role.authority()))
-                .toList();
+                .map(account -> new AuthenticatedCaller(
+                        account.id(),
+                        account.roles().stream().map(role -> role.authority()).collect(Collectors.toUnmodifiableSet())));
     }
 }

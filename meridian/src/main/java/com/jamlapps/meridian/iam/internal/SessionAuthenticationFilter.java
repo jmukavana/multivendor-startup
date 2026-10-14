@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -41,12 +42,15 @@ class SessionAuthenticationFilter extends OncePerRequestFilter {
         String token = extractToken(request);
 
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            sessionResolver.resolve(token).ifPresent(principal -> {
+            sessionResolver.resolve(token).ifPresent(caller -> {
+                var authorities = caller.authorities().stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .toList();
+
                 // Credentials are null on purpose: the token must not be reachable from the
                 // security context, where anything that logs the authentication would print it.
                 SecurityContextHolder.getContext()
-                        .setAuthentication(new UsernamePasswordAuthenticationToken(
-                                principal, null, SessionResolver.authoritiesOf(principal)));
+                        .setAuthentication(new UsernamePasswordAuthenticationToken(caller, null, authorities));
             });
         }
 

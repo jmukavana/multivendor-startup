@@ -1,25 +1,31 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import {
+  type ActionResult,
   API_ERROR_CODES,
   api,
+  attempt,
+  failed,
   getErrorMessage,
   isApiError,
+  parseInput,
 } from "@/shared/api";
-import { getAccessToken } from "@/shared/lib/session";
-import { VENDOR_APPLICATION_TAG } from "./constants";
+import { requireSession } from "@/shared/lib/guard";
+import { toE164 } from "@/shared/lib/phone";
 import {
   readVendorApplicationForm,
-  toE164,
+  uploadDocumentSchema,
   type VendorApplicationField,
   type VendorApplicationValues,
   vendorApplicationSchema,
 } from "./schemas";
 import type { VendorApplication, VendorApplicationState } from "./types";
+
+const APPLY_PATH = "/vendor/apply";
 
 function failure(
   message: string,
@@ -33,16 +39,14 @@ function failure(
 /**
  * Submits a vendor application (UC-01 steps 2–5, BR-VND-01/02/04/05).
  *
- * Server Actions are reachable by direct POST, not only through this form, so
- * authentication and validation are enforced here rather than in the UI.
+ * Server Actions are reachable by direct POST, not only through this form, so authentication
+ * and validation are enforced here rather than in the UI.
  */
 export async function submitVendorApplication(
   _previous: VendorApplicationState,
   formData: FormData,
 ): Promise<VendorApplicationState> {
-  if (!(await getAccessToken())) {
-    redirect("/login?next=/vendor/apply");
-  }
+  await requireSession(APPLY_PATH);
 
   const values = readVendorApplicationForm(formData);
   const parsed = vendorApplicationSchema.safeParse(values);
@@ -72,10 +76,11 @@ export async function submitVendorApplication(
   } catch (error) {
     if (!isApiError(error)) throw error;
 
-    // E3 — the PIN already belongs to an approved vendor.
+    // E3 — the PIN already belongs to a vendor or a live application. The backend checks this
+    // before the insert and again on the unique index, so it can arrive either way.
     if (error.code === API_ERROR_CODES.KRA_PIN_TAKEN) {
       return failure(
-        "This KRA PIN is already registered to an approved vendor.",
+        "This KRA PIN is already registered to a vendor or a pending application.",
         values,
         { kraPin: ["Already registered to another vendor"] },
         error.traceId,
@@ -91,11 +96,11 @@ export async function submitVendorApplication(
       );
     }
 
-    // Only an explicitly expired session ends the session. A bare 401 or a 403
-    // can mean a permission the caller lacks or a backend hiccup, and bouncing
-    // those to /login signs people out while their cookies are still valid.
+    // Only an explicitly expired session ends the session. A bare 401 or a 403 can mean a
+    // permission the caller lacks or a backend hiccup, and bouncing those to /login signs
+    // people out while their cookies are still valid.
     if (error.code === API_ERROR_CODES.SESSION_EXPIRED) {
-      redirect("/login?next=/vendor/apply");
+      redirect(`/login?next=${encodeURIComponent(APPLY_PATH)}`);
     }
 
     return failure(
@@ -109,7 +114,52 @@ export async function submitVendorApplication(
     );
   }
 
-  updateTag(VENDOR_APPLICATION_TAG);
+  // The application is a per-account read and never cached, so there is no tag to clear.
+  refresh();
   // redirect throws a control-flow exception — it must stay outside the try block.
   redirect(`/vendor/apply/submitted?id=${created.id}`);
+}
+
+/** The backend caps verification documents at 10MB. */
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * BR-VND-03: attaches a verification document to an application.
+ *
+ * `documentType` rides in the query string, not the body — the backend reads it as a
+ * `@RequestParam` alongside the multipart file part.
+ */
+export async function uploadVerificationDocument(
+  input: unknown,
+  formData: FormData,
+): Promise<ActionResult<void>> {
+  await requireSession(APPLY_PATH);
+
+  const parsed = parseInput(uploadDocumentSchema, input);
+  if (!parsed.ok) return parsed.failure;
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return failed("Choose a document to upload.", "VALIDATION_ERROR", {
+      file: ["Choose a document to upload"],
+    });
+  }
+  if (file.size > MAX_DOCUMENT_BYTES) {
+    return failed("That document is larger than 10MB.", "VALIDATION_ERROR", {
+      file: ["The document must be 10MB or smaller"],
+    });
+  }
+
+  const upload = new FormData();
+  upload.set("file", file);
+
+  const { applicationId, documentType } = parsed.data;
+  const result = await attempt("We could not upload that document.", () =>
+    api.post<void>(`/vendors/applications/${applicationId}/documents`, upload, {
+      query: { documentType },
+    }),
+  );
+
+  if (result.status === "success") refresh();
+  return result;
 }

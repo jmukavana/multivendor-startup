@@ -1,7 +1,5 @@
-import { redirect } from "next/navigation";
-
 import { VendorApplicationForm } from "@/features/vendor-onboarding";
-import { getAccessToken } from "@/shared/lib/session";
+import { requireSession } from "@/shared/lib/guard";
 
 export const metadata = {
   title: "Vendor application — Meridian",
@@ -11,9 +9,7 @@ export default async function VendorApplyPage() {
   // UC-01 step 1: the applicant already holds a verified account.
   // Reading the session also keeps this route out of the prerender, so the
   // submission id below is generated per request rather than baked in at build.
-  if (!(await getAccessToken())) {
-    redirect("/login?next=/vendor/apply");
-  }
+  await requireSession("/vendor/apply");
 
   const submissionId = crypto.randomUUID();
 

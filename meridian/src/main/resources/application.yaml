@@ -53,8 +53,23 @@ management:
     tracing:
       export:
         otlp:
-          # Unset locally, so nothing is exported and startup is unaffected. Set per environment.
-          endpoint: ${OTLP_TRACES_ENDPOINT:}
+          # A real, syntactically valid default, not an empty string. `OtlpTracingConfigurations
+          # .ConnectionDetails` (spring-boot-micrometer-tracing-opentelemetry) is gated by
+          # `@ConditionalOnProperty("...otlp.endpoint")`, which treats ANY present value — including
+          # ""  — as "on", so a bare `${OTLP_TRACES_ENDPOINT:}` here (this key's value before this
+          # fix) always activated the OTLP exporter bean, which then failed to even construct:
+          # OtlpHttpSpanExporterBuilder rejects an empty endpoint with "Invalid endpoint, must start
+          # with http:// or https://", crashing application startup outright — every time, with no
+          # env var set. This was invisible all session because @SpringBootTest disables tracing
+          # autoconfiguration by default, so every test that boots the full context (WalkingSkeleton
+          # FlowTests included) never exercises this path; found by actually running the app via
+          # `./gradlew bootTestRun`, not by any automated test. http://localhost:4318 is the OTel
+          # SDK's own conventional local-collector address: syntactically valid, so the exporter
+          # bean now constructs and startup succeeds; if nothing is actually listening there (true
+          # for a bare local/test run), individual span exports fail silently in the background —
+          # BatchSpanProcessor logs and drops them — which is what "nothing is exported and startup
+          # is unaffected" was always meant to describe. Set to a real collector URL per environment.
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318}
   otlp:
     tracing:
       export:

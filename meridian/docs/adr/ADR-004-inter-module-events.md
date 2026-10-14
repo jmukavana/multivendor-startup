@@ -56,3 +56,33 @@ rely on schema auto-generation. It is a production table carrying unprocessed bu
 Events are for notification, not for querying. A consumer that needs to ask a question calls the
 owning module's API. A listener that calls back into the publishing module synchronously
 re-creates the coupling this decision removes.
+
+## Note added in the deferred-gaps closing pass: one-time codes are the one exception
+
+`iam.events.OneTimeCodeIssued` — one-time codes delivered by SMS, per the "Note added in Phase 1"
+in ADR-002 — has been removed, and BR-IAM-01/02's delivery now goes through `web.MessageGateway`,
+called synchronously from `iam.internal.AuthenticationService.issueCode` in the same method that
+generates the code. This is the one place in the codebase a module calls another to send something,
+rather than publishing an event, and it is deliberate, not a lapse back into the coupling this ADR
+exists to prevent.
+
+The reason is specific to what an event publication is: a row in the event publication registry,
+persisted so a failed listener can be resubmitted, exactly as this ADR's Decision section requires.
+A one-time code is a bearer credential for the ten minutes it is valid. `OneTimeCodeIssued` was
+designed around that from the start — it deliberately never carried the plaintext code, only a
+`deliveryReference` — which avoided a credential at rest in that table, correctly. What it did not
+avoid, because nothing checked it end to end until the application was actually run rather than
+only tested, is that a BCrypt hash cannot be reversed: nothing downstream of the event could ever
+recover the code the reference was supposed to resolve to. The SMS a user received named a
+reference number and never contained a code to type back in — registration and login were not
+completable outside a test, which substitutes a capturing double for code generation and never
+exercises delivery at all. Found by running the app and reading its own mock-SMS log line, not by
+any of this codebase's automated tests.
+
+There is no version of "publish an event, deliver asynchronously" that both keeps the plaintext
+code off a persisted, retried, resubmittable table and actually gets it to the user before it
+matters. Synchronous delivery, in the same call, while the code is still in a local variable and
+nowhere else, is the only shape that satisfies both. `web.MessageGateway` is scoped narrowly to
+that one case — see its own javadoc — precisely so it does not become a general licence to bypass
+this ADR for anything else. Every other cross-module notification in this codebase remains
+event-based, unchanged.

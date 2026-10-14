@@ -132,6 +132,14 @@ Outstanding: the frontend's sign-in/sign-out Server Actions (do not exist yet �
 `features/auth` to reconcile, only `session.ts` and `client.ts` to build against), and switching
 from hand-written types to ones generated from `/v3/api-docs`.
 
+**The walking skeleton itself is complete on the backend.** `vendor`, `catalog` and `order` exist
+as deliberate Phase-1 stand-ins — thin, single-price, single-vendor-per-order, documented in each
+module's public API as provisional against the real BR-VND/BR-CAT/BR-ORD shapes arriving in Phases
+2 and 4. `WalkingSkeletonFlowTests` proves BRD 18's Phase 1 exit criterion through real HTTP: a
+vendor registers, lists a product; a buyer registers, orders it; payment is marked manually; the
+order confirms. Remaining backend work for Phase 1 is the frontend contract items above and
+`Deployment` from Phase 0 — there is no further backend module work Phase 1 requires.
+
 ### Phase 2 — Vendor lifecycle
 
 *Exit: UC-01 and UC-02 pass in full including exception flows; AC-VND-01 to 06 and AC-CAT-01 to 04 pass.*

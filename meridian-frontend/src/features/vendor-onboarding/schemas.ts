@@ -1,9 +1,9 @@
 import { z } from "zod";
 
+import { KE_MOBILE } from "@/shared/lib/phone";
+
 /** KRA PIN: leading class letter, nine digits, checksum letter. BR-VND-02. */
 const KRA_PIN = /^[AP]\d{9}[A-Z]$/;
-/** Kenyan mobile in local (07…, 01…) or international (+2547…, +2541…) form. */
-const KE_MOBILE = /^(?:\+254|0)(?:1|7)\d{8}$/;
 
 export const vendorApplicationSchema = z.object({
   businessName: z
@@ -85,7 +85,12 @@ export function readVendorApplicationForm(
   return values;
 }
 
-/** The backend expects E.164; the form accepts the local 07… form people actually type. */
-export function toE164(mobile: string): string {
-  return mobile.startsWith("0") ? `+254${mobile.slice(1)}` : mobile;
-}
+export const uploadDocumentSchema = z.object({
+  applicationId: z.uuid(),
+  documentType: z.enum(
+    ["NATIONAL_ID", "BUSINESS_REGISTRATION_CERTIFICATE", "KRA_PIN_CERTIFICATE"],
+    { error: "Choose which document this is" },
+  ),
+});
+
+export type UploadDocumentInput = z.infer<typeof uploadDocumentSchema>;

@@ -80,6 +80,18 @@ was `notification` needing `iam::events`: one-time codes are delivered by SMS, w
 `notification`'s job, and `iam` publishes `OneTimeCodeIssued` rather than sending anything itself,
 per ADR-004. `notification`'s allowed dependencies gained `iam::events` for that reason.
 
+**Superseded in the deferred-gaps closing pass.** `iam::events` and `OneTimeCodeIssued` are gone;
+`notification`'s dependency list lost that entry. One-time code delivery goes through
+`web.MessageGateway` instead — a synchronous slot in `web`, called directly by `iam.internal
+.AuthenticationService`, filled by `notification.internal.MessageGatewayAdapter` — see ADR-004's
+own "Note added" section for why this one case is a synchronous call rather than an event, and
+`iam`'s package doc for the bug that made the change necessary: the event never carried the
+plaintext code, and nothing could recover one from the BCrypt hash it was hashed into, so no SMS
+ever actually delivered a working code. `iam` still depends on nothing but `web`; the direction of
+the new dependency is the same as every other foundational-module slot in this codebase
+(`RateLimiter`, `AuditLog`) — a module below calls a module above through an interface the module
+above defines, never the reverse.
+
 `web` also gained a wiring detail worth recording here rather than only in ADR-004: `iam`
 contributes its session-resolving filter to the security chain declared in `web`, but `web` never
 imports an `iam` type to do it. The filter is injected into `web`'s configuration by Spring bean

@@ -1,12 +1,11 @@
 package com.jamlapps.meridian.iam.internal;
 
-import com.jamlapps.meridian.iam.MeridianPrincipal;
 import com.jamlapps.meridian.iam.Role;
 import com.jamlapps.meridian.iam.internal.AuthenticationService.IssuedSession;
 import com.jamlapps.meridian.iam.internal.AuthenticationService.RequestContext;
-import com.jamlapps.meridian.web.ApiException;
 import com.jamlapps.meridian.web.ApiResponse;
-import com.jamlapps.meridian.web.ErrorCode;
+import com.jamlapps.meridian.web.AuthenticatedCaller;
+import com.jamlapps.meridian.web.ClientAddress;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -104,7 +103,7 @@ class AuthController {
 
     @DeleteMapping("/sessions")
     ApiResponse<Void> signOutEverywhere(
-            @AuthenticationPrincipal MeridianPrincipal principal, HttpServletRequest httpRequest) {
+            @AuthenticationPrincipal AuthenticatedCaller principal, HttpServletRequest httpRequest) {
 
         authentication.revokeAllSessions(principal.accountId(), contextOf(httpRequest));
         return ApiResponse.of(null);
@@ -120,19 +119,6 @@ class AuthController {
     }
 
     private static RequestContext contextOf(HttpServletRequest request) {
-        return new RequestContext(clientAddress(request), request.getHeader("User-Agent"));
-    }
-
-    /**
-     * The staging and production topology sits behind a load balancer, so the socket address is
-     * the balancer's, not the caller's. X-Forwarded-For carries the real one; its first entry is
-     * the original client, per the standard convention.
-     */
-    private static @Nullable String clientAddress(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return new RequestContext(ClientAddress.of(request), request.getHeader("User-Agent"));
     }
 }

@@ -40,6 +40,10 @@ class SessionTokenEntity {
     @Column(name = "user_agent")
     private @Nullable String userAgent;
 
+    /** BR-ADM-08: null for every ordinary session — only set on one {@code AuthenticationService.issueImpersonationSession} creates. */
+    @Column(name = "impersonator_account_id")
+    private @Nullable UUID impersonatorAccountId;
+
     protected SessionTokenEntity() {
         // for JPA
     }
@@ -52,6 +56,18 @@ class SessionTokenEntity {
             Instant expiresAt,
             @Nullable String sourceAddress,
             @Nullable String userAgent) {
+        this(id, accountId, tokenHash, issuedAt, expiresAt, sourceAddress, userAgent, null);
+    }
+
+    SessionTokenEntity(
+            UUID id,
+            UUID accountId,
+            String tokenHash,
+            Instant issuedAt,
+            Instant expiresAt,
+            @Nullable String sourceAddress,
+            @Nullable String userAgent,
+            @Nullable UUID impersonatorAccountId) {
         this.id = id;
         this.accountId = accountId;
         this.tokenHash = tokenHash;
@@ -59,6 +75,7 @@ class SessionTokenEntity {
         this.expiresAt = expiresAt;
         this.sourceAddress = sourceAddress;
         this.userAgent = userAgent;
+        this.impersonatorAccountId = impersonatorAccountId;
     }
 
     boolean isLive(Instant now) {
@@ -81,5 +98,21 @@ class SessionTokenEntity {
 
     UUID id() {
         return id;
+    }
+
+    Instant issuedAt() {
+        return issuedAt;
+    }
+
+    Instant expiresAt() {
+        return expiresAt;
+    }
+
+    @Nullable Instant revokedAt() {
+        return revokedAt;
+    }
+
+    @Nullable UUID impersonatorAccountId() {
+        return impersonatorAccountId;
     }
 }

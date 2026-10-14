@@ -71,13 +71,21 @@ export function getErrorMessage(
   return detail && detail.length <= MAX_USER_FACING_LENGTH ? detail : fallback;
 }
 
+/**
+ * Mirrors `web.ErrorCode` in the backend. The two lists are a contract and change together;
+ * a code missing here falls through to generic copy rather than failing.
+ */
 export const API_ERROR_CODES = {
   UNAUTHORIZED: "UNAUTHORIZED",
   FORBIDDEN: "FORBIDDEN",
+  /** The only code that ends a session. A bare UNAUTHORIZED must not sign anyone out. */
+  SESSION_EXPIRED: "SESSION_EXPIRED",
   NOT_FOUND: "NOT_FOUND",
   VALIDATION_ERROR: "VALIDATION_ERROR",
-  SESSION_EXPIRED: "SESSION_EXPIRED",
   KRA_PIN_TAKEN: "KRA_PIN_TAKEN",
+  VENDOR_ALREADY_EXISTS: "VENDOR_ALREADY_EXISTS",
+  RATE_LIMITED: "RATE_LIMITED",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
 
 export type ApiErrorCode =

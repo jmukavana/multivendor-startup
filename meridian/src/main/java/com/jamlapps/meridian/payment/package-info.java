@@ -9,5 +9,5 @@
  */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Payments",
-        allowedDependencies = {})
+        allowedDependencies = {"shared"})
 package com.jamlapps.meridian.payment;

@@ -14,6 +14,9 @@ interface SessionTokenRepository extends JpaRepository<SessionTokenEntity, UUID>
 
     List<SessionTokenEntity> findByAccountIdAndRevokedAtIsNull(UUID accountId);
 
+    /** BR-ADM-08: this account's own impersonation history, most recent first — {@code session_token_impersonation_idx} backs this. */
+    List<SessionTokenEntity> findByAccountIdAndImpersonatorAccountIdIsNotNullOrderByIssuedAtDesc(UUID accountId);
+
     /**
      * Revokes every live session for an account in one statement, for suspension (BR-VND-10,
      * BR-SEC-07) and for "sign out everywhere". Done as a bulk update because loading a

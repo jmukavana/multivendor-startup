@@ -1,5 +1,6 @@
 /**
- * Cache tags shared between readers (Server Components) and writers (Server Actions).
- * These cannot live in actions.ts — a "use server" module may only export async functions.
+ * Re-exported from the shared tag registry so every slice's tags are declared in one place.
+ * Kept out of actions.ts: a "use server" module may only export async functions, and adding a
+ * constant to one strips every export off the module.
  */
-export const VENDOR_APPLICATION_TAG = "vendor-application";
+export { VENDOR_APPLICATION_TAG } from "@/shared/cache/tags";
